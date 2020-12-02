@@ -1,8 +1,14 @@
+const EventEmitter = require('./eventEmitter');
+
+const eventEmitter = new EventEmitter();
+eventEmitter.taskIndex = 1;
+
 class MyPromise {
   constructor(executor) {
     this._state = 'pending';
     this._result = undefined;
 
+    // 并发
     this._resolveHandlers = [];
     this._rejectHandlers = [];
 
@@ -11,7 +17,12 @@ class MyPromise {
         this._state = 'fulfilled';
         this._result = response;
 
-        this._resolveHandlers.forEach(resolveHandler => resolveHandler(this._result));
+        this._resolveHandlers.forEach(task => {
+          const { name, handler } = task;
+          const result = handler.call(this, this._result);
+
+          eventEmitter.emit(name, result);
+        });
       }
     };
     const reject = (error) => {
@@ -27,8 +38,17 @@ class MyPromise {
   }
 
   then(resolveHandler, rejectHandler) {
-    this._resolveHandlers.push(resolveHandler);
+    const task = { name: 'event' + eventEmitter.taskIndex++, handler: resolveHandler };
+    this._resolveHandlers.push(task);
     this._rejectHandlers.push(rejectHandler);
+
+    return new MyPromise((resolve, reject) => {
+      // async
+      eventEmitter.on(task.name, (res) => {
+        // console.log(task.name + ' settled', res);
+        resolve(res);
+      });
+    });
   }
 
   catch(handler) {
