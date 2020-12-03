@@ -1,8 +1,3 @@
-const EventEmitter = require('./eventEmitter');
-
-const eventEmitter = new EventEmitter();
-eventEmitter.taskIndex = 1;
-
 class MyPromise {
   constructor(executor) {
     this._state = 'pending';
@@ -17,11 +12,8 @@ class MyPromise {
         this._state = 'fulfilled';
         this._result = response;
 
-        this._resolveHandlers.forEach(task => {
-          const { name, handler } = task;
-          const result = handler.call(this, this._result);
-
-          eventEmitter.emit(name, result);
+        this._resolveHandlers.forEach(handler => {
+          handler(response);
         });
       }
     };
@@ -30,25 +22,46 @@ class MyPromise {
         this._state = 'rejected';
         this._result = error;
 
-        this._rejectHandlers.forEach(rejectHandler => rejectHandler(this._result));
+        this._rejectHandlers.forEach(handler => {
+          handler(error);
+        });
       }
     }
 
-    executor.call(this, resolve, reject);
+    executor(resolve, reject);
   }
 
   then(resolveHandler, rejectHandler) {
-    const task = { name: 'event' + eventEmitter.taskIndex++, handler: resolveHandler };
-    this._resolveHandlers.push(task);
-    this._rejectHandlers.push(rejectHandler);
+    if (this._state === 'pending') {
+      return new Promise((resolve, reject) => {
+        // 这里既实现了resolveHandler的注册，同时也能将resolveHandler的执行结果留在新promise里再resolve出去
+        const _resolveHandler = (value) => {
+          const result = resolveHandler(value);
+          resolve(result);
+        };
+        this._resolveHandlers.push(_resolveHandler);
 
-    return new MyPromise((resolve, reject) => {
-      // async
-      eventEmitter.on(task.name, (res) => {
-        // console.log(task.name + ' settled', res);
-        resolve(res);
+        const _rejectHandler = (error) => {
+          const result = rejectHandler(error);
+          reject(result);
+        };
+        this._rejectHandlers.push(_rejectHandler);
       });
-    });
+    }
+
+    if (this._state === 'fulfilled') {
+      return new Promise((resolve, reject) => {
+        const result = resolveHandler(this._result);
+        resolve(result);
+      });
+    }
+
+    if (this._state === 'rejected') {
+      return new Promise((resolve, reject) => {
+        const result = rejectHandler(this._result);
+        resolve(result);
+      });
+    }
   }
 
   catch(handler) {
