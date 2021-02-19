@@ -70,19 +70,27 @@ class MyPromise {
   finally(handler) {}
 }
 
+// const resolvePromise = (result, resolve, reject) => {
+//   if (result instanceof MyPromise) {
+//     if (result._state === 'pending') {
+//       result.then(function (data) {
+//         resolvePromise(data, resolve, reject)
+//       })
+//     } else {
+//       result.then(resolve, reject)
+//     }
+//     return
+//   }
+
+//   return resolve(result)
+// }
+
 const resolvePromise = (result, resolve, reject) => {
   if (result instanceof MyPromise) {
-    if (result._state === 'pending') {
-      result.then(function (data) {
-        resolvePromise(data, resolve, reject)
-      })
-    } else {
-      result.then(resolve, reject)
-    }
-    return
+    result.then(resolve, reject);
+  } else {
+    resolve(result);
   }
-
-  return resolve(result)
-}
+};
 
 module.exports = MyPromise
